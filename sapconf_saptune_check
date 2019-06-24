@@ -13,11 +13,12 @@
 
 # Changelog:
 #
-# 24.06.2019  v0.1      Frist release.
+# 24.06.2019  v0.1      First release.
+# 24.06.2019  v0.1.1    Small bug fixed / Some messages rephrased
 
 
 
-version="0.1"
+version="0.1.1"
 
 
 function header() { 
@@ -95,7 +96,7 @@ function check_sapconf() {
             print_ok "sapconf tuned profile '${active_profile}' is set"
             ;; 
         *)
-            print_fail "No sapconf tuned profile set: ${active_profile:=(none)}\t--> Please choose a sapconf profile by running 'tuned-adm profile <your choosen profile>'"
+            print_fail "Current profile "${active_profile:=(none)}" is no saptune profile\t--> Please choose a sapconf profile by running 'tuned-adm profile <your choosen profile>'"
             ((fails++))
             ;;
     esac
@@ -216,8 +217,8 @@ function check_saptune() {
         print_ok "tuned.service is enabled"
 
     else
-        print_warn "tuned.service is disabled\t\t--> Run 'saptune daemon start' to enable tuned at boot."
-        ((warnings++))
+        print_fail "tuned.service is disabled\t\t--> Run 'saptune daemon start' to enable tuned at boot."
+        ((fails++))
     fi
 
     # Checking the tuned profile.
@@ -225,7 +226,7 @@ function check_saptune() {
     if [ "${active_profile}" == "saptune" ] ; then 
         print_ok "saptune tuned profile is set"
     else
-        print_fail "No saptune profile is set: ${active_profile:=(none)}\t--> Run 'saptune daemon start' to set the profile."
+        print_fail "Current profile "${active_profile:=(none)}" is no saptune profile\t--> Run 'saptune daemon start' to set the profile."
         ((fails++))
     fi
 
