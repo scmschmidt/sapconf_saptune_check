@@ -95,7 +95,7 @@ function check_sapconf() {
             print_ok "sapconf tuned profile '${active_profile}' is set"
             ;; 
         *)
-            print_fail "Current profile "${active_profile:=(none)}" is no saptune profile\t--> Please choose a sapconf profile by running 'tuned-adm profile <your choosen profile>'"
+            print_fail "\"${active_profile:=(none)}\" is no sapconf tuned profile\t--> Please choose a sapconf profile by running 'tuned-adm profile <your choosen profile>'"
             ((fails++))
             ;;
     esac
@@ -225,7 +225,7 @@ function check_saptune() {
     if [ "${active_profile}" == "saptune" ] ; then 
         print_ok "saptune tuned profile is set"
     else
-        print_fail "Current profile "${active_profile:=(none)}" is no saptune profile\t--> Run 'saptune daemon start' to set the profile."
+        print_fail "\"${active_profile:=(none)}\" is no saptune tuned profile\t--> Run 'saptune daemon start' to set the profile."
         ((fails++))
     fi
 
