@@ -1,0 +1,287 @@
+#!/bin/bash
+
+# This tool checks if sapconf or saptune is set up correctly. 
+# It will not dig deeper to check if the tuning itself is working.
+#
+# exit codes:       0   All checks ok. Sapconf/saptune have been set up correctly.
+#                   1   Some warnings occured. Sapconf/saptune should work, but better check manually.
+#                   2   Some errors occured. Sapconf/saptune will not work.
+#                   3   Wrong parameters given to the tool on commandline.
+#
+#
+# (( ADD DISCLAIMER HERE! ))
+
+# Changelog:
+#
+# 24.06.2019  v0.1      Frist release.
+
+
+
+version="0.1"
+
+
+function header() { 
+    local len=${#1}
+    echo -e "\n${1}"
+    printf '=%.s' $(eval "echo {1.."$((${len}))"}")
+    echo
+}
+
+function print_ok() {
+    local text="  ${@}"
+    echo -e "[ OK ]${text}"
+}
+
+function print_fail() {
+    local text="  ${@}"
+    echo -e "[FAIL]${text}"
+}
+
+function print_warn() {
+    local text="  ${@}"
+    echo -e "[WARN]${text}"
+}
+
+function check_package_version() {
+    rpm -q --qf '%{version}' "${1}" 2>&1
+    return ${?}
+}
+
+function check_sapconf() {
+
+    local fails=0 warnings=0 VERSION_ID version sapconf_service_active
+
+    header "Checking sapconf"
+    
+    # Determine the OS release
+    eval $(grep ^VERSION_ID= /etc/os-release)
+
+    # We can stop, if sapconf is not installed.
+    if ! version=$(check_package_version sapconf) ; then
+        echo "sapconf is not installed" 
+        return 2    
+    fi
+
+    # A complete RPM version comparison in bash is a horrible task, so we make some assumptions here.
+    # SLES 11: there is no reworked version, so we will exit.
+    # SLES 12 (SP0): there is no reworked version, so we will exit.
+    # SLES 12 SP1-3: all reworked versions should have version 4.1 and a sub-version equal or greater than 12
+    # SLES 12 SP >3: only reworked versions exists 
+    # SLES 15: only reworked versions exists 
+    case "${VERSION_ID}" in
+        12.1|12.2|12.3)
+            if [ "${version%.*}" != '4.1' ] ; then
+                echo "sapconf version ${version} is not a reworked one! Please update."
+                return 2        
+            else
+                if [ "${version##*.}" -lt 12 ] ; then
+                    echo "sapconf version ${version} is not a reworked one! Please update."
+                    return 2        
+                fi
+            fi
+            ;;
+        12.4|12.5|15*)
+            ;;
+        *)  echo "SLES version ${VERSION_ID} does not have a reworked sapconf."
+            return 2        
+            ;;
+    esac            
+    print_ok "sapconf package version ${version}"    
+
+    # Checking the tuned profile.
+    active_profile=$(< /etc/tuned/active_profile)
+    case "${active_profile}" in
+        sapconf|sap-netweaver|sap-hana|sap-bobj|sap-ase)
+            print_ok "sapconf tuned profile '${active_profile}' is set"
+            ;; 
+        *)
+            print_fail "No sapconf tuned profile set: ${active_profile:=(none)}\t--> Please choose a sapconf profile by running 'tuned-adm profile <your choosen profile>'"
+            ((fails++))
+            ;;
+    esac
+
+    # Checking status of sapconf.service.
+    sapconf_service_active=0
+    if systemctl is-active sapconf.service --quiet ; then
+        print_ok "sapconf.service is active"
+        sapconf_service_active=1
+    else
+        print_fail "sapconf.service is inactive\t\t--> Run 'systemctl start sapconf.service' to activate the tuning now."
+        ((fails++))
+    fi
+    if systemctl is-enabled sapconf.service --quiet ; then
+        print_ok "sapconf.service is enabled"
+    else
+        print_fail "sapconf.service is disabled\t\t--> Run 'systemctl enable sapconf.service' to activate sapconf at boot."
+        ((fails++))
+    fi
+
+    # Checking status of tuned.service.
+    if systemctl is-active tuned.service --quiet ; then
+        print_ok "tuned.service is active"
+    else
+        # Only if sapconf.service is active, we have a problem.
+        if [ ${sapconf_service_active} -eq 0 ] ; then
+            print_warn "tuned.service is inactive\t\t--> After a 'systemctl start sapconf.service' tuned.service should be active as well."
+            ((warnings++))
+        else
+            print_fail "tuned.service is inactive\t\t--> The sapconf.service is active and should have started tuned.service. Try a 'systemctl restart sapconf.service'."
+            ((fails++))
+        fi
+    fi
+    if systemctl is-enabled tuned.service --quiet ; then
+        print_warn "tuned.service is enabled\t\t--> The sapconf.service will take care of tuned. Better disable it by running 'systemctl disable tuned.service'."
+        ((warnings++))
+    else
+        print_ok "tuned.service is disabled"
+    fi
+
+    # Summary.
+    echo
+    [ ${warnings} -gt 0 ] && echo "${warnings} warning(s) have been found."
+    [ ${fails} -gt 0 ] && echo "${fails} error(s) have been found."
+    if [ ${fails} -gt 0 ] ; then
+        echo "Sapconf will not work properly!"
+        return 1
+    else 
+        if [ ${warnings} -gt 0 ] ; then
+            echo "Sapconf should work properly, but better investigate!"
+        else
+            echo "Sapconf is set up correctly."
+        fi
+    fi
+    return 0    
+}
+
+function check_saptune() {
+    local fails=0 warnings=0 VERSION_ID version SAPTUNE_VERSION TUNE_FOR_SOLUTIONS TUNE_FOR_NOTES
+
+    header "Checking saptune"
+    
+    # Determine the OS release
+    eval $(grep ^VERSION_ID= /etc/os-release)
+
+    # We can stop, if sapconf is not installed.
+    if ! version=$(check_package_version saptune) ; then
+        echo "saptune is not installed" 
+        return 2    
+    fi
+
+    # Saptune was first introduced in SP2. 
+    # We will give a warning, if version 2 is not installed or running as version 1 ((THIS PART WILL BE ACTIVATED AFTER RELEASE OF VERSION 2!)).
+    case "${VERSION_ID}" in
+        12.2|12.3|12.4|12.5|15*)
+            print_ok "saptune package version ${version}"             
+            # THE NEXT BLOCK REPLACES THE LINE ABOVE AS SOON SAPTUNE 2 HAS BEEN RELEASED!
+            #if [ "${version%%.*}" == '1' ] ; then
+            #    print_warn "saptune package version ${version}\t\t--> Version 1 is obsolete. Please update saptune."   
+            #    ((warnings++))
+            #else
+            #    print_ok "saptune package version ${version}" 
+            #    eval $(grep ^SAPTUNE_VERSION= /etc/sysconfig/saptune)
+            #    if [ "${SAPTUNE_VERSION}" == "1" ] ; then
+            #        print_warn "saptune is running in compat version 1\t--> Please read man page 'saptune-migrate' to migrate to version 2."   
+            #        ((warnings++))    
+            #    fi
+            #fi
+            ;;
+        *)  echo "SLES version ${VERSION_ID} does not have saptune."
+            return 2        
+            ;;
+    esac      
+
+    # Checking status of sapconf.service.
+    sapconf_service_active=0
+    if systemctl is-active sapconf.service --quiet ; then
+        print_fail "sapconf.service is active\t\t--> Run 'systemctl stop sapconf.service' to stop the tuning now."
+        ((fails++))
+    else
+        print_ok "sapconf.service is inactive"
+    fi
+    if systemctl is-enabled sapconf.service --quiet ; then
+        print_fail "sapconf.service is enabled\t\t--> Run 'systemctl disable sapconf.service' to deactivate sapconf at boot."
+        ((fails++))
+    else
+        print_ok "sapconf.service is disbled"
+    fi
+
+    # Checking status of tuned.service.
+    if systemctl is-active tuned.service --quiet ; then
+        print_ok "tuned.service is active"
+    else
+        print_fail "tuned.service is inactive\t\t--> Run 'saptune daemon start' to start the tuning now."
+        ((fails++))
+    fi
+    if systemctl is-enabled tuned.service --quiet ; then
+        print_ok "tuned.service is enabled"
+
+    else
+        print_warn "tuned.service is disabled\t\t--> Run 'saptune daemon start' to enable tuned at boot."
+        ((warnings++))
+    fi
+
+    # Checking the tuned profile.
+    active_profile=$(< /etc/tuned/active_profile)
+    if [ "${active_profile}" == "saptune" ] ; then 
+        print_ok "saptune tuned profile is set"
+    else
+        print_fail "No saptune profile is set: ${active_profile:=(none)}\t--> Run 'saptune daemon start' to set the profile."
+        ((fails++))
+    fi
+
+    # Check solutions/notes of saptune
+    eval $(grep ^TUNE_FOR_NOTES= /etc/sysconfig/saptune)
+    eval $(grep ^TUNE_FOR_SOLUTIONS= /etc/sysconfig/saptune)
+    if [ -z "${TUNE_FOR_NOTES}" -a -z "${TUNE_FOR_SOLUTIONS}" ] ; then
+        print_fail "No solutions or notes applied\t\t--> Run 'saptune solution|note apply <id>' to configure saptune."
+        ((fails++))
+    else
+        print_ok "saptune is configured: solutions: ${TUNE_FOR_SOLUTIONS:=-}  notes: ${TUNE_FOR_NOTES:=-}"
+    fi
+
+    # Summary.
+    echo
+    [ ${warnings} -gt 0 ] && echo "${warnings} warning(s) have been found."
+    [ ${fails} -gt 0 ] && echo "${fails} error(s) have been found."
+    if [ ${fails} -gt 0 ] ; then
+        echo "Saptune will not work properly!"
+        return 1
+    else 
+        if [ ${warnings} -gt 0 ] ; then
+            echo "Saptune should work properly, but better investigate!"
+        else
+            echo "Saptune is set up correctly."
+        fi
+    fi
+    return 0    
+}
+
+# --- MAIN ---
+
+# Introduction.
+echo -e "\nThis is ${0##*/} v${version}.\n"
+echo -e "It verifies if sapconf or saptune are set up correctly."
+echo -e "Please keep in mind:"
+echo -e " - Only *one* of both can be used at the same time!"
+echo -e " - This tool does not check, if the tuning itself works correctly."
+echo -e " - Follow the hints from top to down to minimize side effects.\n"
+
+# Determine if we are running a SLES.
+eval $(grep ^ID= /etc/os-release)
+[ "${ID}" != "sles" ] && { echo "Only SLES is supported! Your OS ID is ${ID}! Exiting." ; exit 2 ; }
+
+# Check parameters.
+case "${@}" in
+    sapconf)    check_sapconf
+                exit $?
+                ;;
+    saptune)    check_saptune
+                exit $?
+                ;;
+    *)          echo "Usage: ${0##*/} sapconf|saptune"
+                exit 3
+                ;;
+esac
+
+# Bye.
+exit 0
