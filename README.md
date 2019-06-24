@@ -76,15 +76,15 @@ Saptune will not work properly!
 
 ## EXIT CODES
 
-0   All checks ok. Sapconf/saptune have been set up correctly.
-1   Some warnings occured. Sapconf/saptune should work, but better check manually.
-2   Some errors occured. Sapconf/saptune will not work.
-3   Wrong parameters given to the tool on commandline.
+0   All checks ok. Sapconf/saptune have been set up correctly.  
+1   Some warnings occured. Sapconf/saptune should work, but better check manually.  
+2   Some errors occured. Sapconf/saptune will not work.  
+3   Wrong parameters given to the tool on commandline.  
 
 
 ## Changelog
 
-24.06.2019  v0.1      First release.
-24.06.2019  v0.1.1    Small bug fixed / Some messages rephrased
+24.06.2019  v0.1      First release.  
+24.06.2019  v0.1.1    Small bug fixed / Some messages rephrased  
 
 ## Author / Disclaimer???
