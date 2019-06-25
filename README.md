@@ -13,12 +13,12 @@ Please follow the hints from top to down to mitigate side effects.
 **It will not dig deeper to check if the tuning itself is working correctly!**
 
 
-## USAGE
+## Usage
 ```
 sapconf_saptune_check sapconf|saptune
 ```
 
-## EXAMPLES
+## Examples
 
 A sapconf check with everything perfect:
 ```
@@ -74,7 +74,7 @@ Saptune will not work properly!
 ```
 
 
-## EXIT CODES
+## Exit Codes
 | exit code | description                                                                    |
 |-----------|--------------------------------------------------------------------------------|
 |     0     | All checks ok. Sapconf/saptune have been set up correctly.                     |
@@ -89,5 +89,4 @@ Saptune will not work properly!
 |------------|----------|---------------------------------------------|
 | 24.06.2019 | v0.1     | First release.                              |
 | 24.06.2019 | v0.1.1   |  Small bug fixed / Some messages rephrased  |
-
-## Author / Disclaimer???
+| 25.06.2019 | v0.1.2   | Disclaimer added                            |
