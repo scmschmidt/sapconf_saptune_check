@@ -29,9 +29,14 @@
 # 24.06.2019  v0.1      First release.
 # 24.06.2019  v0.1.1    Small bug fixed / Some messages rephrased
 # 25.06.2019  v0.1.2    Disclaimer added
+# 22.11.2019  v0.1.3    Bug fix: Now handles missing rpm packages
+
+# !!!! V1 CHECK HAS TO BE ACTIVATED
+# !!!! DO WE INCLUDE TUNED-LESS VARIANT ALREADY?? 
 
 
-version="0.1.2"
+
+version="0.1.3"
 
 
 function header() { 
@@ -186,6 +191,7 @@ function check_saptune() {
     case "${VERSION_ID}" in
         12.2|12.3|12.4|12.5|15*)
             print_ok "saptune package version ${version}"             
+            echo "V1 CHECK!!!!!!!!!"
             # THE NEXT BLOCK REPLACES THE LINE ABOVE AS SOON SAPTUNE 2 HAS BEEN RELEASED!
             #if [ "${version%%.*}" == '1' ] ; then
             #    print_warn "saptune package version ${version}\t\t--> Version 1 is obsolete. Please update saptune."   
@@ -204,7 +210,8 @@ function check_saptune() {
             ;;
     esac      
 
-    # Checking status of sapconf.service.
+    # Checking status of sapconf.service when package is installed.
+    # if check_package_version sapconf ; then
     sapconf_service_active=0
     if systemctl is-active sapconf.service --quiet ; then
         print_fail "sapconf.service is active\t\t--> Run 'systemctl stop sapconf.service' to stop the tuning now."
