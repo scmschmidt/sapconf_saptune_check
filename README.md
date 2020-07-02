@@ -22,7 +22,7 @@ sapconf_saptune_check overview|sapconf|saptune
 
 Just getting an overview:
 ```
-./sapconf_saptune_check overview
+# ./sapconf_saptune_check overview
 
 This is sapconf_saptune_check v1.0.0.
 
@@ -123,5 +123,4 @@ Saptune will not work properly!
 | 24.06.2019 | v0.1.1   | Small bug fixed / Some messages rephrased   |
 | 25.06.2019 | v0.1.2   | Disclaimer added                            |
 | 22.11.2019 | v0.1.3   | Bug fix: Now handles missing rpm packages   |
-| 02.07.2020 | v1.0.0   | Rework to fix some bugs regarding missing   |
-|            |          | packages and support for tuned-less sapconf |
+| 02.07.2020 | v1.0.0   | Rework to fix some bugs regarding missing packages and support for tuned-less sapconf  |
