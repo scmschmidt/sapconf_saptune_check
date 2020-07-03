@@ -32,14 +32,18 @@
 # 22.11.2019  v0.1.3    Bug fix: Now handles missing rpm packages
 # 02.07.2020  v1.0.0    Rework to fix some bugs regarding missing packages and 
 #                       support for tuned-less sapconf
+# 03.07.2020  v1.1.0    Searches for obsolete leftovers from updates and 
+#                       warns if deprecated profiles, SAP Notes or Solutions are used
+# 03.07.2020  v1.1.1    Bug fix: We terminate with an error if saptune v1 is discovered and if saptune v3 detected
 
+version="1.1.1"
 
-version="1.0.0"
-
-# package_version     -  contains package version (string) 
+# We use these global arrays through out the program:
+#
+# package_version     -  contains package version (string)
 # unit_state_active   -  contains systemd unit state (systemctl is-active) 
 # unit_state_enabled  -  contains systemd unit state (systemctl is-enabled) 
-# tool_profile        -  contains actual profile (string) for each tool  
+# tool_profile        -  contains actual profile (string) for each tool
 declare -A package_version unit_state_active unit_state_enabled tool_profile
 
 
@@ -194,6 +198,120 @@ function collect_data() {
     configured_saptune_version
 }
 
+function compile_filelists() {
+    # Params:   VERSIONTAG
+    # Output:   warnings and fails with print_warn() and print_fail()
+    # Exitcode: -
+    #
+    # Checks the existence of mandatory and invalid files for sapconf and saptune 
+    # (depending on SLES release and VERSIONTAG) and prints warnings or fails.
+    #
+    # The following strings for VERSIONTAG are allowed: "sapconf-4_reworked", "sapconf-5", 
+    # "saptune-2" and "saptune-3"
+    #
+    # Also for all mandatory and invalid files, we search for RPM leftovers (.rpmnew/.rpmsave). 
+    #
+    # IMPORTANT:
+    #   When adding new files every file must be listed in either of the arrays mandatory_files", 
+    #   "optional_files" or "ivalid_files" but in *each* SLES release and tag section!
+    #   The array optional_files is not used at the moment and might be removed in the future.
+    #
+    # The function updates the variables "warnings" and "fails" used in check_sapconf() and saptune_check(). 
+    #
+    # Requires: print_warn() and print_fail()
+
+    local VERSION_ID tag="${1}" mandatory_files optional_files invalid_files rpm_leftovers
+    declare -a mandatory_files optional_files invalid_files rpm_leftovers
+
+    eval $(grep ^VERSION_ID= /etc/os-release)
+    case ${VERSION_ID} in 
+        12*)
+            case ${tag} in 
+                sapconf-4_reworked)
+                    mandatory_files=( '/etc/sysconfig/sapconf' '/etc/sysconfig/sapnote-1680803')
+                    optional_files=( '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' )
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sapconf' )
+                    ;;
+                sapconf-5)
+                    mandatory_files=( '/etc/sysconfig/sapconf' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj')
+                    optional_files=( '/etc/tuned/sapconf' )
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1557506' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj')
+                    ;;
+                saptune-2)
+                    mandatory_files=( '/etc/sysconfig/saptune' )
+                    optional_files=( '' )
+                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    ;;
+                saptune-3)
+                    mandatory_files=( '/etc/sysconfig/saptune' )
+                    optional_files=( '' )
+                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    ;;
+            esac
+            ;;
+        15*)
+            case ${tag} in 
+                sapconf-4_reworked)
+                    mandatory_files=( '/etc/sysconfig/sapconf' )
+                    optional_files=( '/etc/tuned/sapconf' )
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' )
+                    ;;
+                sapconf-5)
+                    mandatory_files=( '/etc/sysconfig/sapconf' )
+                    optional_files=( '' )
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' '/etc/tuned/sapconf')
+                    ;;
+                saptune-2)
+                    mandatory_files=( '/etc/sysconfig/saptune' )
+                    optional_files=( '' )
+                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    ;;
+                saptune-3)
+                    mandatory_files=( '/etc/sysconfig/saptune' )
+                    optional_files=( '' )
+                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    ;;
+            esac
+            ;;
+    esac
+
+    # Special test for update helper /etc/tuned/saptune/tuned.conf (saptune v2 migration).
+    case ${tag} in 
+        saptune-2)
+            if [ -e "/etc/tuned/saptune/tuned.conf" ] ; then
+                if $(grep -q '#stv1tov2#' "/etc/tuned/saptune/tuned.conf") ; then
+                    print_warn "/etc/tuned/saptune/tuned.conf contains upgrade helper flag '#stv1tov2#'!\t-> Please read man page saptune-migrate(7)!"
+                    ((warnings++))
+                fi
+            fi
+            ;;
+    esac
+
+    # Now check the existence of mandatory and invalid files and print warnings and fails.    
+    for ((i=0;i<${#mandatory_files[@]};i++)) ; do
+        if [ ! -e "${mandatory_files[i]}" ] ; then 
+            print_fail "${mandatory_files[i]} is missing, but a mandatory file.\t --> Check your installation!"
+            ((fails++))
+        fi
+        rpm_leftovers+=("${mandatory_files[i]}.rpmsave" "${mandatory_files[i]}.rpmnew" )
+    done 
+    for ((i=0;i<${#invalid_files[@]};i++)) ; do
+        if [ -e "${invalid_files[i]}" ] ; then 
+            print_warn "${invalid_files[i]} is not used by this version. Maybe a leftover from an update?\t --> Check the content and remove it."
+            ((warnings++))
+        fi
+        rpm_leftovers+=("${invalid_files[i]}.rpmsave" "${invalid_files[i]}.rpmnew" )
+    done 
+    
+    # Print a warning if we have found RPM leftovers!
+    for ((i=0;i<${#rpm_leftovers[@]};i++)) ; do
+        if [ -e "${rpm_leftovers[i]}" ] ; then 
+            print_warn "${rpm_leftovers[i]} found. This is a leftover from a package update!\t --> Check the content and remove it."
+            ((warnings++))
+        fi
+    done 
+}
+
 function overview() {
     # We just list the system configuration without any 
     # analysis if is correct for sapconf or saptune.
@@ -228,7 +346,7 @@ function overview() {
 function check_sapconf() {
     # Checks if sapconf is installed correctly.
 
-    local fails=0 warnings=0 tuned_used
+    local fails=0 warnings=0 tuned_used version_tag
 
     # We can stop, if sapconf is not installed.
     if [ -z "${package_version['sapconf']}" ] ; then
@@ -251,12 +369,15 @@ function check_sapconf() {
                 return 2        
             fi
             tuned_used='yes'
+            version_tag='sapconf-4_reworked'
             ;;
         4.[2-9].*)
             tuned_used='yes'
+            version_tag='sapconf-4_reworked'
             ;;
         5.*)  
             tuned_used='no'
+            version_tag='sapconf-5'
             ;;
         *)  
             print_fail "sapconf version ${package_version['sapconf']} is unknown to this script! Exiting."
@@ -317,8 +438,12 @@ function check_sapconf() {
 
                     # Checking the tuned profile.
                     case "${tool_profile['tuned']}" in
-                        sapconf|sap-netweaver|sap-hana|sap-bobj|sap-ase)
+                        sapconf|sap-netweaver|sap-hana)
                             print_ok "sapconf tuned profile '${tool_profile['tuned']}' is set"
+                            ;;
+                        sap-bobj|sap-ase)
+                            print_warn "sapconf tuned profile '${tool_profile['tuned']}' is valid but deprecated"
+                            ((warnings++))
                             ;; 
                         *)
                             print_fail "No sapconf tuned profile: ${tool_profile['tuned']} \t--> Please choose a sapconf profile by running 'tuned-adm profile <your choosen profile>'"
@@ -340,6 +465,9 @@ function check_sapconf() {
                     ((fails++))
                     ;;
             esac
+
+            # Check config files and rpm leftovers.
+            compile_filelists ${version_tag}       
             ;;    
         no) 
             header "Checking sapconf (tuned-less)"
@@ -409,6 +537,9 @@ function check_sapconf() {
                         ;;
                 esac
             fi
+            
+            # Check config files and rpm leftovers.
+            compile_filelists ${version_tag}
             ;;    
         *)  
             echo "Error in version evaluation. Report a bug!"
@@ -436,7 +567,7 @@ function check_sapconf() {
 function check_saptune() {
     # Checks if saptune is installed correctly.
 
-    local fails=0 warnings=0 tuned_used SAPTUNE_VERSION TUNE_FOR_SOLUTIONS TUNE_FOR_NOTES
+    local fails=0 warnings=0 tuned_used version_tag SAPTUNE_VERSION TUNE_FOR_SOLUTIONS TUNE_FOR_NOTES
 
     # We can stop, if saptune is not installed.
     if [ -z "${package_version['saptune']}" ] ; then
@@ -445,11 +576,17 @@ function check_saptune() {
     fi
 
     case "${package_version['saptune']}" in
-        [12].*)
+        1.*)
+            print_fail "saptune version ${version} is not a reworked one!\t--> Please update."
+            return 2
+            ;;
+        2.*)
             tuned_used='yes'
+            version_tag='saptune-2'
             ;;
         3.*)
             tuned_used='no'
+            version_tag='saptune-3'
             ;;
         *)  
             print_fail "saptune version ${package_version['saptune']} is unknown to this script! Exiting."
@@ -548,15 +685,23 @@ function check_saptune() {
                     print_fail "No solutions or notes applied\t\t--> Run 'saptune solution|note apply <id>' to configure saptune."
                     ((fails++))
                     ;;
+                *MAXDB*)
+                    print_warn "saptune is configured with an obsolete solution: ${tool_profile['saptune']}"
+                    ((warnings++))
+                    ;;    
                 *)
                     print_ok "saptune is configured: ${tool_profile['saptune']}"
                     ;;
             esac
+
+            # Check config files and rpm leftovers.
+            compile_filelists ${version_tag}
             ;;
         no) 
             header "Checking saptune (tuned-less)"
             print_ok "saptune package has version ${package_version['saptune']}"
             print_note "Tests for this version haven't implemented yet!"
+            return 3
             ;;
         *)  
             echo "Error in version evaluation. Report a bug!"
