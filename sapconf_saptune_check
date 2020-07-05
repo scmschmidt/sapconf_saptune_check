@@ -35,8 +35,10 @@
 # 03.07.2020  v1.1.0    Searches for obsolete leftovers from updates and 
 #                       warns if deprecated profiles, SAP Notes or Solutions are used
 # 03.07.2020  v1.1.1    Bug fix: We terminate with an error if saptune v1 is discovered and if saptune v3 detected
+# 05.07.2020  v1.2.0    Print a note if a tuned profile in /etc has been found 
+#                       Bug fix: Clean messed up invalid/mandatory files in compile_filelists()
 
-version="1.1.1"
+version="1.2.0"
 
 # We use these global arrays through out the program:
 #
@@ -200,7 +202,7 @@ function collect_data() {
 
 function compile_filelists() {
     # Params:   VERSIONTAG
-    # Output:   warnings and fails with print_warn() and print_fail()
+    # Output:   warnings, fails and notes with print_warn(), print_fail() and print_note()
     # Exitcode: -
     #
     # Checks the existence of mandatory and invalid files for sapconf and saptune 
@@ -212,13 +214,15 @@ function compile_filelists() {
     # Also for all mandatory and invalid files, we search for RPM leftovers (.rpmnew/.rpmsave). 
     #
     # IMPORTANT:
-    #   When adding new files every file must be listed in either of the arrays mandatory_files", 
-    #   "optional_files" or "ivalid_files" but in *each* SLES release and tag section!
-    #   The array optional_files is not used at the moment and might be removed in the future.
+    #   When adding new files every file must be listed in either of the arrays mandatory_files"
+    #   or "invalid_files" but in *each* SLES release and tag section!
+    #   
+    # The array "customized_tuned_dirs" contains user defined tuned directories, so we can print
+    # a note.
     #
     # The function updates the variables "warnings" and "fails" used in check_sapconf() and saptune_check(). 
     #
-    # Requires: print_warn() and print_fail()
+    # Requires: print_warn(),print_fail() and print_note()
 
     local VERSION_ID tag="${1}" mandatory_files optional_files invalid_files rpm_leftovers
     declare -a mandatory_files optional_files invalid_files rpm_leftovers
@@ -229,23 +233,23 @@ function compile_filelists() {
             case ${tag} in 
                 sapconf-4_reworked)
                     mandatory_files=( '/etc/sysconfig/sapconf' '/etc/sysconfig/sapnote-1680803')
-                    optional_files=( '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' )
                     invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sapconf' )
+                    customized_tuned_dirs=( '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' )
                     ;;
                 sapconf-5)
                     mandatory_files=( '/etc/sysconfig/sapconf' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj')
-                    optional_files=( '/etc/tuned/sapconf' )
-                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1557506' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj')
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' '/etc/tuned/sapconf')
+                    customized_tuned_dirs=( '' )
                     ;;
                 saptune-2)
                     mandatory_files=( '/etc/sysconfig/saptune' )
-                    optional_files=( '' )
                     invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    customized_tuned_dirs=( '/etc/tuned/saptune' )
                     ;;
-                saptune-3)
+                saptune-3) # not yet released!
                     mandatory_files=( '/etc/sysconfig/saptune' )
-                    optional_files=( '' )
-                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' '/etc/tuned/saptune' )
+                    customized_tuned_dirs=( '' )
                     ;;
             esac
             ;;
@@ -253,27 +257,32 @@ function compile_filelists() {
             case ${tag} in 
                 sapconf-4_reworked)
                     mandatory_files=( '/etc/sysconfig/sapconf' )
-                    optional_files=( '/etc/tuned/sapconf' )
-                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' )
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' )
+                    customized_tuned_dirs=( '/etc/tuned/sapconf' )
                     ;;
                 sapconf-5)
                     mandatory_files=( '/etc/sysconfig/sapconf' )
-                    optional_files=( '' )
-                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' '/etc/tuned/sapconf')
+                    invalid_files=( '/etc/sysconfig/sapnote-1557506' '/etc/sysconfig/sapnote-1680803' '/etc/sysconfig/sapnote-bobj' '/etc/tuned/sap-netweaver' '/etc/tuned/sap-hana' '/etc/tuned/sap-ase' '/etc/tuned/sap-bobj' '/etc/tuned/sapconf')
+                    customized_tuned_dirs=( '' )
                     ;;
                 saptune-2)
                     mandatory_files=( '/etc/sysconfig/saptune' )
-                    optional_files=( '' )
                     invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    customized_tuned_dirs=( '/etc/tuned/saptune' )
                     ;;
-                saptune-3)
+                saptune-3) # not yet released!
                     mandatory_files=( '/etc/sysconfig/saptune' )
-                    optional_files=( '' )
-                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' )
+                    invalid_files=( '/etc/saptune/extra/SAP_ASE-SAP_Adaptive_Server_Enterprise.conf' '/etc/saptune/extra/SAP_BOBJ-SAP_Business_OBJects.conf' '/etc/sysconfig/saptune-note-1275776' '/etc/sysconfig/saptune-note-1557506' '/etc/sysconfig/saptune-note-SUSE-GUIDE-01' '/etc/sysconfig/saptune-note-SUSE-GUIDE-02' '/etc/tuned/saptune' )
+                    customized_tuned_dirs=( '' )
                     ;;
             esac
             ;;
     esac
+
+    # Lets check for a user-defined tuned configuration.
+    for ((i=0;i<${#customized_tuned_dirs[@]};i++)) ; do
+        [ -d "${customized_tuned_dirs[i]}" ] && print_note "Individual tuned configuration detected: ${customized_tuned_dirs[i]}"
+    done
 
     # Special test for update helper /etc/tuned/saptune/tuned.conf (saptune v2 migration).
     case ${tag} in 
