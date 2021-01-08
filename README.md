@@ -136,3 +136,4 @@ Saptune will not work properly!
 | 03.07.2020 | v1.1.0   | Searches for obsolete leftovers from updates and warns if deprecated profiles, SAP Notes or Solutions are used |
 | 03.07.2020 | v1.1.1   | Bug fix: We terminate with an error if saptune v1 is discovered and if saptune v3 detected  |
 | 05.07.2020 | v1.2.0   | Added printing a note if a tuned profile in /etc has been found and messed up invalid/mandatory files in compile_filelists() cleaned |
+| 08.01.2021 | v1.2.1   | Bug fix: Support of changed sapconf profile path (>= 5.0.1). |

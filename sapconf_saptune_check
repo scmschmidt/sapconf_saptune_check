@@ -37,8 +37,9 @@
 # 03.07.2020  v1.1.1    Bug fix: We terminate with an error if saptune v1 is discovered and if saptune v3 detected
 # 05.07.2020  v1.2.0    Print a note if a tuned profile in /etc has been found 
 #                       Bug fix: Clean messed up invalid/mandatory files in compile_filelists()
+# 08.01.2021  v1.2.1    Bug fix: Support of changed sapconf profile path (>= 5.0.1).
 
-version="1.2.0"
+version="1.2.1"
 
 # We use these global arrays through out the program:
 #
@@ -131,16 +132,21 @@ function get_tool_profiles() {
     #
     # Requires: -
 
-    local active_profile TUNE_FOR_NOTES TUNE_FOR_SOLUTIONS
+    local active_profile sapconf_profile_file TUNE_FOR_NOTES TUNE_FOR_SOLUTIONS
     active_profile=''
     [ -e /etc/tuned/active_profile ] && active_profile=$(< /etc/tuned/active_profile)
     tool_profile['tuned']="${active_profile:-missing}"
 
     active_profile=''
-    if [ -e /var/lib/sapconf/act_profile ] ; then 
-        active_profile=$(< /var/lib/sapconf/act_profile)
+    if [ -e /run/sapconf_act_profile ]; then 
+        sapconf_profile_file='/run/sapconf_act_profile'  # sapconf >= 5.0.1
+    else 
+        sapconf_profile_file='/var/lib/sapconf/act_profile'
+    fi
+    if [ -e "${sapconf_profile_file}" ] ; then 
+        active_profile=$(< "${sapconf_profile_file}")
     else
-        active_profile='no file'
+        active_profile="(no profile file ${sapconf_profile_file})"
     fi
     tool_profile['sapconf']="${active_profile:-missing}"
       
@@ -489,7 +495,7 @@ function check_sapconf() {
 
                     # Checking the sapconf profile.
                     case "${tool_profile['sapconf']}" in
-                        "no file")
+                        "(no profile file)")
                             ;;
                         sapconf-netweaver|sapconf-hana|sapconf-bobj|sapconf-ase)
                             print_ok "sapconf profile '${tool_profile['sapconf']#sapconf-}' is set"
