@@ -38,16 +38,18 @@
 # 05.07.2020  v1.2.0    Print a note if a tuned profile in /etc has been found 
 #                       Bug fix: Clean messed up invalid/mandatory files in compile_filelists()
 # 08.01.2021  v1.2.1    Bug fix: Support of changed sapconf profile path (>= 5.0.1).
+# 15.01.2021  v1.2.2    Bug fix: Profile test for sapconf only on SLES 12 (new function os_version)
 
-version="1.2.1"
+version="1.2.2"
 
 # We use these global arrays through out the program:
 #
+# os_version          -  contins release and service pack information
 # package_version     -  contains package version (string)
 # unit_state_active   -  contains systemd unit state (systemctl is-active) 
 # unit_state_enabled  -  contains systemd unit state (systemctl is-enabled) 
 # tool_profile        -  contains actual profile (string) for each tool
-declare -A package_version unit_state_active unit_state_enabled tool_profile
+declare -A os_version package_version unit_state_active unit_state_enabled tool_profile
 
 
 function header() { 
@@ -76,6 +78,27 @@ function print_note() {
     local text="  ${@}"
     echo -e "[NOTE]${text}"
 }
+
+function get_os_version() {
+    # Params:   -
+    # Output:   -
+    # Exitcode: -
+    #
+    # Determines the OS version as string for each PACKAGE.
+    # Not installed packages will have an empty string as version.
+    #
+    # The function updates the associative array "os_version".
+    #
+    # Requires:-
+
+    local VERSION_ID
+    
+    eval $(grep ^VERSION_ID= /etc/os-release)
+    os_version['release']="${VERSION_ID%.*}"
+    os_version['servicepack']="${VERSION_ID#*.}"
+}
+
+
 
 function get_package_versions() {
     # Params:   PACKAGE...
@@ -188,10 +211,14 @@ function collect_data() {
     #
     # Calls various functions to collect data.
     #
-    # Requires: get_package_versions()
+    # Requires: get_os_version()
+    #           get_package_versions()
     #           get_unit_states()
     #           get_tool_profiles()
     #           configured_saptune_version()
+
+    # Collect OS version.
+    get_os_version
 
     # Collect data about some packages.
     get_package_versions sapconf saptune tuned
@@ -493,20 +520,24 @@ function check_sapconf() {
                 active)
                     print_ok "sapconf.service is active"
 
-                    # Checking the sapconf profile.
-                    case "${tool_profile['sapconf']}" in
-                        "(no profile file)")
-                            ;;
-                        sapconf-netweaver|sapconf-hana|sapconf-bobj|sapconf-ase)
-                            print_ok "sapconf profile '${tool_profile['sapconf']#sapconf-}' is set"
-                            ;; 
-                        missing)
-                            print_fail "No sapconf profile is set!\t\t--> Please set a sapconf profile by running 'sapconf stop && sapconf <your choosen profile>'"
-                            ((fails++))
-                            ;;
-                        *)
-                            print_fail "No sapconf profile: ${tool_profile['sapconf']}\t--> Please set a sapconf profile by running 'sapconf stop && sapconf <your choosen profile>'"
-                            ((fails++))
+                    # Checking the sapconf profile (SLES 12).
+                    case "${os_version['release']}" in 
+                        12)
+                            case "${tool_profile['sapconf']}" in
+                                "(no profile file)")
+                                    ;;
+                                sapconf-netweaver|sapconf-hana|sapconf-bobj|sapconf-ase)
+                                    print_ok "sapconf profile '${tool_profile['sapconf']#sapconf-}' is set"
+                                    ;; 
+                                missing)
+                                    print_fail "No sapconf profile is set!\t\t--> Please set a sapconf profile by running 'sapconf stop && sapconf <your choosen profile>'"
+                                    ((fails++))
+                                    ;;
+                                *)
+                                    print_fail "No sapconf profile: ${tool_profile['sapconf']}\t--> Please set a sapconf profile by running 'sapconf stop && sapconf <your choosen profile>'"
+                                    ((fails++))
+                                    ;;
+                            esac  
                             ;;
                     esac
                     ;;
