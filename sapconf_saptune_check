@@ -39,8 +39,9 @@
 #                       Bug fix: Clean messed up invalid/mandatory files in compile_filelists()
 # 08.01.2021  v1.2.1    Bug fix: Support of changed sapconf profile path (>= 5.0.1).
 # 15.01.2021  v1.2.2    Bug fix: Profile test for sapconf only on SLES 12 (new function os_version)
+# 27.10.2021  v1.3      Will deny execution by pointing to sapconf_check and saptune_check if sapconf >=5.0.2 and saptune >=3 are installed 
 
-version="1.2.2"
+version="1.3"
 
 # We use these global arrays through out the program:
 #
@@ -417,9 +418,13 @@ function check_sapconf() {
             tuned_used='yes'
             version_tag='sapconf-4_reworked'
             ;;
-        5.*)  
+        5.0.[01])  
             tuned_used='no'
             version_tag='sapconf-5'
+            ;;
+        5.0.[2-9]|5.[1-9]*)  
+            print_fail "Please use 'sapconf_check' shipped with the package to analyze the setup! Exiting."
+            return 2 
             ;;
         *)  
             print_fail "sapconf version ${package_version['sapconf']} is unknown to this script! Exiting."
@@ -631,8 +636,8 @@ function check_saptune() {
             version_tag='saptune-2'
             ;;
         3.*)
-            tuned_used='no'
-            version_tag='saptune-3'
+            print_fail "Please use 'saptune_check' shipped with the package to analyze the setup! Exiting."
+            return 2 
             ;;
         *)  
             print_fail "saptune version ${package_version['saptune']} is unknown to this script! Exiting."

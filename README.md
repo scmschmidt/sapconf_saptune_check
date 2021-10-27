@@ -1,10 +1,8 @@
+
+> :warning:  **This script is obsolete and will not give correct results with sapconf 5 and saptune 3!** 
+> **The sapconf part is available in the sapconf package (>=5.0.2) as `sapconf_check` and the saptune part in the saptune package (>=3.0.0) as `saptune_check`.**
+
 # sapconf_saptune_check
-
-> :warning: 
-> This script is obsolete and will not give correct results with sapconf 5 and saptune 3! 
-> The sapconf part is available in the sapconf package (>=5.0.2) as `sapconf_check` and the saptune part in the saptune packae (>=3.0.0) as `saptune_check`.
-
-
 
 This tool checks if sapconf or saptune is set up correctly. +
 It will check among other things
@@ -144,3 +142,4 @@ Saptune will not work properly!
 | 05.07.2020 | v1.2.0   | Added printing a note if a tuned profile in /etc has been found and messed up invalid/mandatory files in compile_filelists() cleaned |
 | 08.01.2021 | v1.2.1   | Bug fix: Support of changed sapconf profile path (>= 5.0.1). |
 | 15.01.2021 | v1.2.2   | Bug fix: Profile test for sapconf only on SLES 12 (new function os_version) |
+| 27.10.2021 | v1.3     | Will deny execution by pointing to sapconf_check and saptune_check if sapconf >=5.0.2 and saptune >=3 are installed |
